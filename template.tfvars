@@ -1,6 +1,6 @@
 
 ###  ---  Default Template  ---  ###
-region         = "us-west-2"
+region         = "eu-central-1"
 ami_id         = "ami-0345dd2cef523536e"
 instance_type  = "t3.large" ### t3.xlarge
 master_count   = 1
