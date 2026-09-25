@@ -114,7 +114,10 @@ resource "aws_security_group" "k3s_sg" {
   description = var.security_group_description
   vpc_id      = aws_vpc.k3s.id
 
+  # ----------------------------------------------------------
   # SSH
+  # ----------------------------------------------------------
+
   ingress {
     description = "SSH"
     from_port   = 22
@@ -126,7 +129,10 @@ resource "aws_security_group" "k3s_sg" {
     ]
   }
 
+  # ----------------------------------------------------------
   # K3s API
+  # ----------------------------------------------------------
+
   ingress {
     description = "K3s API"
     from_port   = 6443
@@ -138,7 +144,10 @@ resource "aws_security_group" "k3s_sg" {
     ]
   }
 
-  # HTTP - NGINX Ingress
+  # ----------------------------------------------------------
+  # HTTP
+  # ----------------------------------------------------------
+
   ingress {
     description = "HTTP"
     from_port   = 80
@@ -150,7 +159,10 @@ resource "aws_security_group" "k3s_sg" {
     ]
   }
 
-  # HTTPS - NGINX Ingress
+  # ----------------------------------------------------------
+  # HTTPS
+  # ----------------------------------------------------------
+
   ingress {
     description = "HTTPS"
     from_port   = 443
@@ -162,7 +174,17 @@ resource "aws_security_group" "k3s_sg" {
     ]
   }
 
-  # K3s internal node-to-node traffic
+  # ----------------------------------------------------------
+  # K3s internal traffic
+  #
+  # Includes:
+  # - Flannel
+  # - etcd
+  # - K3s server communication
+  # - kubelet
+  # - pod networking
+  # ----------------------------------------------------------
+
   ingress {
     description = "K3s internal traffic"
     from_port   = 0
@@ -174,7 +196,10 @@ resource "aws_security_group" "k3s_sg" {
     ]
   }
 
-  # Outbound internet
+  # ----------------------------------------------------------
+  # Outbound
+  # ----------------------------------------------------------
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -200,7 +225,7 @@ resource "aws_key_pair" "generated_key" {
 }
 
 # ============================================================
-# K3s Master
+# K3s Masters
 # ============================================================
 
 resource "aws_instance" "k3s_master" {
@@ -237,8 +262,7 @@ resource "aws_instance" "k3s_master" {
     user        = "ubuntu"
     private_key = file(var.ssh_private_key_path)
     host        = self.public_ip
-
-    timeout = "5m"
+    timeout     = "5m"
   }
 
   provisioner "file" {
@@ -276,7 +300,6 @@ resource "aws_instance" "k3s_worker" {
 
   key_name = aws_key_pair.generated_key.key_name
 
-  # Spread workers across AZs
   subnet_id = aws_subnet.k3s[
     (var.master_count + count.index) % 3
   ].id
@@ -303,8 +326,7 @@ resource "aws_instance" "k3s_worker" {
     user        = "ubuntu"
     private_key = file(var.ssh_private_key_path)
     host        = self.public_ip
-
-    timeout = "5m"
+    timeout     = "5m"
   }
 
   provisioner "file" {
@@ -329,6 +351,8 @@ resource "aws_instance" "k3s_worker" {
     ]
   }
 
+  # Workers start only after the master has completed
+  # its Terraform provisioners.
   depends_on = [
     aws_instance.k3s_master
   ]
