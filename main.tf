@@ -3,12 +3,14 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~>5.0"
+      version = "~> 5.0"
     }
+
     helm = {
       source  = "hashicorp/helm"
       version = "~> 2.13"
     }
+
     kubernetes = {
       source  = "hashicorp/kubernetes"
       version = "~> 2.30"
@@ -20,58 +22,167 @@ provider "aws" {
   region = var.region
 }
 
-# Default VPC
-data "aws_vpc" "default" {
-  default = true
+# ============================================================
+# Availability Zones
+# ============================================================
+
+data "aws_availability_zones" "available" {
+  state = "available"
 }
 
-# Subnets in the default VPC (fixed for AWS provider v5+)
-data "aws_subnets" "default" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.default.id]
+# ============================================================
+# K3s VPC
+# ============================================================
+
+resource "aws_vpc" "k3s" {
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+
+  tags = {
+    Name = "k3s-vpc"
   }
 }
 
-# Use the first subnet (can be randomized or made smarter)
-data "aws_subnet" "default" {
-  id = tolist(data.aws_subnets.default.ids)[0]
+# ============================================================
+# Internet Gateway
+# ============================================================
+
+resource "aws_internet_gateway" "k3s" {
+  vpc_id = aws_vpc.k3s.id
+
+  tags = {
+    Name = "k3s-igw"
+  }
 }
+
+# ============================================================
+# Public Subnets
+# ============================================================
+
+resource "aws_subnet" "k3s" {
+  count = 3
+
+  vpc_id = aws_vpc.k3s.id
+
+  cidr_block = "10.0.${count.index + 1}.0/24"
+
+  availability_zone = data.aws_availability_zones.available.names[count.index]
+
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name = "k3s-public-${count.index + 1}"
+    Role = "k3s"
+  }
+}
+
+# ============================================================
+# Public Route Table
+# ============================================================
+
+resource "aws_route_table" "k3s_public" {
+  vpc_id = aws_vpc.k3s.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.k3s.id
+  }
+
+  tags = {
+    Name = "k3s-public-rt"
+  }
+}
+
+# ============================================================
+# Route Table Associations
+# ============================================================
+
+resource "aws_route_table_association" "k3s_public" {
+  count = 3
+
+  subnet_id      = aws_subnet.k3s[count.index].id
+  route_table_id = aws_route_table.k3s_public.id
+}
+
+# ============================================================
+# Security Group
+# ============================================================
 
 resource "aws_security_group" "k3s_sg" {
   name        = var.security_group_name
   description = var.security_group_description
-  vpc_id      = data.aws_vpc.default.id
+  vpc_id      = aws_vpc.k3s.id
 
+  # SSH
   ingress {
     description = "Allow SSH"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = [var.ssh_allowed_cidr]
+
+    cidr_blocks = [
+      var.ssh_allowed_cidr
+    ]
   }
 
+  # K3s API
   ingress {
-    description = "K3s API (6443)"
+    description = "K3s API"
     from_port   = 6443
     to_port     = 6443
     protocol    = "tcp"
-    cidr_blocks = [data.aws_vpc.default.cidr_block]
+
+    cidr_blocks = [
+      aws_vpc.k3s.cidr_block
+    ]
   }
 
+  # HTTPS / NGINX Ingress
   ingress {
-    description = "K3s HTTS (443)"
+    description = "HTTPS"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = [var.https_allowed_cidr]
+
+    cidr_blocks = [
+      var.https_allowed_cidr
+    ]
   }
-  
+
+  # HTTP
+  ingress {
+    description = "HTTP"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+
+    cidr_blocks = [
+      var.https_allowed_cidr
+    ]
+  }
+
+  # Internal K3s node communication
+  ingress {
+    description = "K3s internal traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+
+    cidr_blocks = [
+      aws_vpc.k3s.cidr_block
+    ]
+  }
+
+  # Internet access
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+
+    cidr_blocks = [
+      "0.0.0.0/0"
+    ]
   }
 
   tags = {
@@ -79,23 +190,40 @@ resource "aws_security_group" "k3s_sg" {
   }
 }
 
+# ============================================================
+# SSH Key
+# ============================================================
+
 resource "aws_key_pair" "generated_key" {
   key_name   = "ubuntu"
   public_key = file(var.ssh_public_key_path)
 }
 
+# ============================================================
+# K3s Masters
+# ============================================================
+
 resource "aws_instance" "k3s_master" {
-  count         = var.master_count
+  count = var.master_count
+
   ami           = var.ami_id
   instance_type = var.instance_type
-  key_name      = aws_key_pair.generated_key.key_name
-  subnet_id     = data.aws_subnet.default.id
-  vpc_security_group_ids = [aws_security_group.k3s_sg.id]
+
+  key_name = aws_key_pair.generated_key.key_name
+
+  subnet_id = aws_subnet.k3s[
+    count.index % 3
+  ].id
+
+  vpc_security_group_ids = [
+    aws_security_group.k3s_sg.id
+  ]
+
   associate_public_ip_address = true
 
   root_block_device {
-    volume_size = var.root_volume_size     # e.g., 30 (in GiB)
-    volume_type = var.root_volume_type     # e.g., "gp3"
+    volume_size           = var.root_volume_size
+    volume_type           = var.root_volume_type
     delete_on_termination = true
   }
 
@@ -126,17 +254,27 @@ resource "aws_instance" "k3s_master" {
       "chmod 600 /home/ubuntu/.ssh/id_rsa",
       "chown ubuntu:ubuntu /home/ubuntu/.ssh/id_rsa",
       "chmod +x /tmp/install.sh",
+
       "bash /tmp/install.sh ${count.index} ${self.private_ip} ${var.master_count}"
     ]
   }
 }
 
+# ============================================================
+# K3s Workers
+# ============================================================
+
 resource "aws_instance" "k3s_worker" {
-  count         = var.worker_count
+  count = var.worker_count
+
   ami           = var.ami_id
   instance_type = var.instance_type
-  key_name      = aws_key_pair.generated_key.key_name
-  subnet_id     = data.aws_subnet.default.id
+
+  key_name = aws_key_pair.generated_key.key_name
+
+  subnet_id = aws_subnet.k3s[
+    (var.master_count + count.index) % 3
+  ].id
 
   vpc_security_group_ids = [
     aws_security_group.k3s_sg.id
@@ -178,9 +316,6 @@ resource "aws_instance" "k3s_worker" {
       "chown ubuntu:ubuntu /home/ubuntu/.ssh/id_rsa",
       "chmod +x /tmp/install.sh",
 
-      # Global node index:
-      # masters = 0..master_count-1
-      # workers = master_count..
       "bash /tmp/install.sh ${var.master_count + count.index} ${aws_instance.k3s_master[0].private_ip} ${var.master_count}"
     ]
   }
@@ -189,6 +324,3 @@ resource "aws_instance" "k3s_worker" {
     aws_instance.k3s_master
   ]
 }
-
-
-
