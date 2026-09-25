@@ -1,6 +1,6 @@
 
 ###  ---  Default Template  ---  ###
-region         = "eu-central-1"
+region         = "us-west-2"
 ami_id                    = "ami-0345dd2cef523536e"
 instance_type             = "t3.large"
 
