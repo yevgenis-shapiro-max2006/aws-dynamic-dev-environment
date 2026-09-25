@@ -116,7 +116,7 @@ resource "aws_security_group" "k3s_sg" {
 
   # SSH
   ingress {
-    description = "Allow SSH"
+    description = "SSH"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
@@ -138,19 +138,7 @@ resource "aws_security_group" "k3s_sg" {
     ]
   }
 
-  # HTTPS / NGINX Ingress
-  ingress {
-    description = "HTTPS"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-
-    cidr_blocks = [
-      var.https_allowed_cidr
-    ]
-  }
-
-  # HTTP
+  # HTTP - NGINX Ingress
   ingress {
     description = "HTTP"
     from_port   = 80
@@ -158,11 +146,23 @@ resource "aws_security_group" "k3s_sg" {
     protocol    = "tcp"
 
     cidr_blocks = [
-      var.https_allowed_cidr
+      var.web_allowed_cidr
     ]
   }
 
-  # Internal K3s node communication
+  # HTTPS - NGINX Ingress
+  ingress {
+    description = "HTTPS"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+
+    cidr_blocks = [
+      var.web_allowed_cidr
+    ]
+  }
+
+  # K3s internal node-to-node traffic
   ingress {
     description = "K3s internal traffic"
     from_port   = 0
@@ -174,7 +174,7 @@ resource "aws_security_group" "k3s_sg" {
     ]
   }
 
-  # Internet access
+  # Outbound internet
   egress {
     from_port   = 0
     to_port     = 0
@@ -200,7 +200,7 @@ resource "aws_key_pair" "generated_key" {
 }
 
 # ============================================================
-# K3s Masters
+# K3s Master
 # ============================================================
 
 resource "aws_instance" "k3s_master" {
@@ -237,6 +237,8 @@ resource "aws_instance" "k3s_master" {
     user        = "ubuntu"
     private_key = file(var.ssh_private_key_path)
     host        = self.public_ip
+
+    timeout = "5m"
   }
 
   provisioner "file" {
@@ -255,6 +257,8 @@ resource "aws_instance" "k3s_master" {
       "chown ubuntu:ubuntu /home/ubuntu/.ssh/id_rsa",
       "chmod +x /tmp/install.sh",
 
+      "echo '[+] Starting K3s master bootstrap...'",
+
       "bash /tmp/install.sh ${count.index} ${self.private_ip} ${var.master_count}"
     ]
   }
@@ -272,6 +276,7 @@ resource "aws_instance" "k3s_worker" {
 
   key_name = aws_key_pair.generated_key.key_name
 
+  # Spread workers across AZs
   subnet_id = aws_subnet.k3s[
     (var.master_count + count.index) % 3
   ].id
@@ -298,6 +303,8 @@ resource "aws_instance" "k3s_worker" {
     user        = "ubuntu"
     private_key = file(var.ssh_private_key_path)
     host        = self.public_ip
+
+    timeout = "5m"
   }
 
   provisioner "file" {
@@ -315,6 +322,8 @@ resource "aws_instance" "k3s_worker" {
       "chmod 600 /home/ubuntu/.ssh/id_rsa",
       "chown ubuntu:ubuntu /home/ubuntu/.ssh/id_rsa",
       "chmod +x /tmp/install.sh",
+
+      "echo '[+] Starting K3s worker bootstrap...'",
 
       "bash /tmp/install.sh ${var.master_count + count.index} ${aws_instance.k3s_master[0].private_ip} ${var.master_count}"
     ]
