@@ -63,3 +63,4 @@ if [ "$NODE_INDEX" -eq 0 ]; then
   echo "[+] NGINX Ingress installed. Use 'kubectl get pods -A' to check readiness."
 fi
 
+
