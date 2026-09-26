@@ -7,7 +7,7 @@ root_volume_size          = 100
 root_volume_type          = "gp3"
 
 master_count              = 1
-worker_count              = 3
+worker_count              = 1
 
 ssh_allowed_cidr          = "0.0.0.0/0"
 web_allowed_cidr          = "0.0.0.0/0"
