@@ -236,11 +236,13 @@ if [ "$NODE_INDEX" -eq 0 ]; then
     --namespace argocd \
     --create-namespace \
     --set server.insecure=true \
-    --set server.ingress.ingressClassName=nginx \
-    --set server.ingress.annotations."nginx\.ingress\.kubernetes\.io/backend-protocol"=HTTP \
     --set server.ingress.enabled=true \
+    --set server.ingress.ingressClassName=nginx \
     --set server.ingress.hostname=argo-dev.crypterio.co \
-    --set server.ingress.tls=true 
+    --set server.ingress.tls=true \
+    --set server.ingress.annotations."nginx\.ingress\.kubernetes\.io/backend-protocol"=HTTP \
+    --wait \
+    --timeout 5m
     
   echo ""
   echo "[+] K3s bootstrap completed successfully"
