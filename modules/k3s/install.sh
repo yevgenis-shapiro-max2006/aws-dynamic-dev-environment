@@ -71,37 +71,31 @@ if [ "$NODE_INDEX" -eq 0 ]; then
 
 else
 
-  echo "[+] Waiting for master API..."
+  echo "[+] Waiting for master K3s API on $MASTER_IP:6443..."
 
   MAX_RETRIES=120
   DELAY=5
 
+  # The Terraform provisioner already validates TCP/6443.
+  # Do not gate node joining on /readyz: the API may accept TCP while
+  # Kubernetes readiness checks are still initializing. K3s agents can
+  # start and retry registration once the API is ready.
   for i in $(seq 1 "$MAX_RETRIES"); do
-
-    if timeout 3 bash -c "</dev/tcp/${MASTER_IP}/6443" 2>/dev/null && \
-       curl --noproxy "*" -kfsS --connect-timeout 3 --max-time 8 \
-       "https://${MASTER_IP}:6443/readyz" \
-       >/dev/null 2>&1; then
-
-      echo "[+] Master API is ready"
+    if timeout 3 bash -c "</dev/tcp/${MASTER_IP}/6443" 2>/dev/null; then
+      echo "[+] Master TCP 6443 is reachable"
       break
     fi
 
-    echo "[+] Waiting for master API... ($i/$MAX_RETRIES)"
+    echo "[+] Waiting for master TCP 6443... ($i/$MAX_RETRIES)"
     sleep "$DELAY"
   done
 
-  if ! curl --noproxy "*" -kfsS \
-    "https://${MASTER_IP}:6443/readyz" \
-    >/dev/null 2>&1; then
-
-    echo "[-] Master API did not become ready"
+  if ! timeout 5 bash -c "</dev/tcp/${MASTER_IP}/6443" 2>/dev/null; then
+    echo "[-] Master TCP 6443 did not become reachable"
     echo "[-] Route to master:"
     ip route get "$MASTER_IP" || true
     echo "[-] TCP 6443 test:"
     timeout 5 bash -c "</dev/tcp/${MASTER_IP}/6443" 2>&1 || true
-    echo "[-] HTTPS readiness test:"
-    curl --noproxy "*" -kS --connect-timeout 5 --max-time 10 "https://${MASTER_IP}:6443/readyz" 2>&1 || true
     exit 1
   fi
 
