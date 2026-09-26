@@ -233,13 +233,13 @@ if [ "$NODE_INDEX" -eq 0 ]; then
   helm upgrade --install argocd argo/argo-cd \
     --namespace argocd \
     --create-namespace \
+    --set global.domain=argo-dev.crypterio.co \
     --set server.insecure=true \
     --set server.ingress.enabled=true \
     --set server.ingress.ingressClassName=nginx \
     --set server.ingress.hostname=argo-dev.crypterio.co \
     --set server.ingress.tls=true \
     --set server.ingress.annotations."nginx\.ingress\.kubernetes\.io/backend-protocol"=HTTP \
-    --set 'configs.params.server\.url=https://argo-dev.crypterio.co' \
     --set-string 'configs.secret.argocdServerAdminPassword=$2a$10$lgcvwdvggWeLl1AN14NWsePcWQczWHRQH2eiUNL9w/gN6NaelDl.G' \
     --set-string 'configs.secret.argocdServerAdminPasswordMtime=2026-09-26T16:00:00Z' \
     --wait \
