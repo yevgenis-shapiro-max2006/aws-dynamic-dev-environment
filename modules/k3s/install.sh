@@ -235,7 +235,8 @@ if [ "$NODE_INDEX" -eq 0 ]; then
     --namespace argocd \
     --create-namespace \
     --set server.ingress.enabled=true \
-    --set server.ingress.hostname=argo-dev.crypterio.co
+    --set server.ingress.hostname=argo-dev.crypterio.co \
+    --set server.ingress.tls=true 
     
   echo ""
   echo "[+] K3s bootstrap completed successfully"
