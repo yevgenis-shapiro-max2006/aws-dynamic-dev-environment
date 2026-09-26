@@ -442,4 +442,12 @@ resource "aws_instance" "k3s_worker" {
   ]
 }
 
+
+  # Workers start only after the primary and all additional masters
+  # have completed their Terraform provisioners.
+  depends_on = [
+    aws_instance.k3s_master_primary,
+    aws_instance.k3s_master_additional
+  ]
+
 }
