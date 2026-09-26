@@ -5,7 +5,7 @@ ami_id                    = "ami-0345dd2cef523536e"
 instance_type             = "t3.large"
 
 master_count              = 1
-worker_count              = 3
+worker_count              = 2
 root_volume_size          = 100
 root_volume_type          = "gp3"
 
