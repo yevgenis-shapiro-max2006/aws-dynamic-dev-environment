@@ -1,4 +1,5 @@
 
+
 #!/bin/bash
 set -euo pipefail
 
@@ -188,15 +189,12 @@ if [ "$NODE_INDEX" -eq 0 ]; then
   fi
 
   export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-
   echo "[+] Adding ingress-nginx Helm repository..."
-
   helm repo add ingress-nginx \
     https://kubernetes.github.io/ingress-nginx \
     2>/dev/null || true
 
   helm repo update
-
   echo "[+] Installing NGINX Ingress Controller..."
 
   helm upgrade --install ingress-nginx \
@@ -241,8 +239,9 @@ if [ "$NODE_INDEX" -eq 0 ]; then
     --set server.ingress.hostname=argo-dev.crypterio.co \
     --set server.ingress.tls=true \
     --set server.ingress.annotations."nginx\.ingress\.kubernetes\.io/backend-protocol"=HTTP \
-    --set-string configs.secret.argocdServerAdminPassword='$2a$10$lgcvwdvggWeLl1AN14NWsePcWQczWHRQH2eiUNL9w/gN6NaelDl.G' \
-    --set-string configs.secret.argocdServerAdminPasswordMtime='2026-09-26T16:00:00Z' \
+    --set 'configs.params.server\.url=https://argo-dev.crypterio.co' \
+    --set-string 'configs.secret.argocdServerAdminPassword=$2a$10$lgcvwdvggWeLl1AN14NWsePcWQczWHRQH2eiUNL9w/gN6NaelDl.G' \
+    --set-string 'configs.secret.argocdServerAdminPasswordMtime=2026-09-26T16:00:00Z' \
     --wait \
     --timeout 5m
 
