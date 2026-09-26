@@ -204,7 +204,7 @@ if [ "$NODE_INDEX" -eq 0 ]; then
     --namespace ingress-nginx \
     --create-namespace \
     --set controller.publishService.enabled=true \
-    --set controller.nodeSelector."node-role\.kubernetes\.io/control-plane"=true \
+    --set controller.replicaCount=2 \
     --wait \
     --timeout 5m
 
