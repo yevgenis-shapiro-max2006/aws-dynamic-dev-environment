@@ -339,16 +339,18 @@ resource "aws_instance" "k3s_worker" {
   }
 
   provisioner "remote-exec" {
-    inline = [
-      "chmod 600 /home/ubuntu/.ssh/id_rsa",
-      "chown ubuntu:ubuntu /home/ubuntu/.ssh/id_rsa",
-      "chmod +x /tmp/install.sh",
+  inline = [
+    "chmod 600 /home/ubuntu/.ssh/id_rsa",
+    "chown ubuntu:ubuntu /home/ubuntu/.ssh/id_rsa",
+    "chmod +x /tmp/install.sh",
 
-      "echo '[+] Starting K3s worker bootstrap...'",
-
-      "bash /tmp/install.sh ${var.master_count + count.index} ${aws_instance.k3s_master[0].private_ip} ${var.master_count}"
-    ]
-  }
+    "echo '[+] Waiting for primary K3s API on ${aws_instance.k3s_master[0].private_ip}:6443...'",
+    "for i in $(seq 1 60); do timeout 2 bash -c '</dev/tcp/${aws_instance.k3s_master[0].private_ip}/6443' 2>/dev/null && break; echo '[+] Waiting for K3s API...'; sleep 5; done",
+    "timeout 2 bash -c '</dev/tcp/${aws_instance.k3s_master[0].private_ip}/6443' 2>/dev/null || { echo '[-] K3s API did not become reachable'; exit 1; }",
+    "echo '[+] Starting K3s worker bootstrap...'",
+    "bash /tmp/install.sh ${var.master_count + count.index} ${aws_instance.k3s_master[0].private_ip} ${var.master_count}"
+  ]
+}
 
   # Workers start only after the master has completed
   # its Terraform provisioners.
