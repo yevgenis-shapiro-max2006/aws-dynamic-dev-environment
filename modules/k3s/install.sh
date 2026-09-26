@@ -227,6 +227,16 @@ if [ "$NODE_INDEX" -eq 0 ]; then
   echo "[+] NGINX Ingress service:"
   kubectl get svc -n ingress-nginx
 
+  echo "[+] Installing Argo Controller..."
+  helm repo add argo https://argoproj.github.io/argo-helm
+  helm repo update
+
+  helm upgrade --install argocd argo/argo-cd \
+    --namespace argocd \
+    --create-namespace \
+    --set server.ingress.enabled=true \
+    --set server.ingress.hostname=argo-dev.crypterio.co
+    
   echo ""
   echo "[+] K3s bootstrap completed successfully"
 
