@@ -235,6 +235,8 @@ if [ "$NODE_INDEX" -eq 0 ]; then
   helm upgrade --install argocd argo/argo-cd \
     --namespace argocd \
     --create-namespace \
+    --set server.ingress.ingressClassName=nginx \
+    --set server.ingress.annotations."nginx\.ingress\.kubernetes\.io/backend-protocol"=HTTP \
     --set server.ingress.enabled=true \
     --set server.ingress.hostname=argo-dev.crypterio.co \
     --set server.ingress.tls=true 
