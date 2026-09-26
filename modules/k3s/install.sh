@@ -6,7 +6,7 @@ NODE_INDEX="${1:-}"
 MASTER_IP="${2:-}"
 MASTER_COUNT="${3:-}"
 
-K3S_VERSION="${K3S_VERSION:-v1.33.3+k3s1}"
+K3S_VERSION="${K3S_VERSION:-v1.37.0+k3s1}"
 SSH_KEY="/home/ubuntu/.ssh/id_rsa"
 
 if [ -z "$NODE_INDEX" ] || [ -z "$MASTER_IP" ] || [ -z "$MASTER_COUNT" ]; then
