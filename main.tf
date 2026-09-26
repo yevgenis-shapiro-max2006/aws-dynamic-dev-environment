@@ -334,7 +334,7 @@ resource "aws_instance" "k3s_worker" {
   }
 
   provisioner "file" {
-    source      = "install.sh"
+    source      = "./modules/k3s/install.sh"
     destination = "/tmp/install.sh"
   }
 
