@@ -241,6 +241,8 @@ if [ "$NODE_INDEX" -eq 0 ]; then
     --set server.ingress.hostname=argo-dev.crypterio.co \
     --set server.ingress.tls=true \
     --set server.ingress.annotations."nginx\.ingress\.kubernetes\.io/backend-protocol"=HTTP \
+    --set-string configs.secret.argocdServerAdminPassword='$2a$10$lgcvwdvggWeLl1AN14NWsePcWQczWHRQH2eiUNL9w/gN6NaelDl.G' \
+    --set-string configs.secret.argocdServerAdminPasswordMtime='2026-09-26T16:00:00Z' \
     --wait \
     --timeout 5m
 
