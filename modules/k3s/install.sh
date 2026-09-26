@@ -19,6 +19,10 @@ echo "[+] MASTER_IP=$MASTER_IP"
 echo "[+] MASTER_COUNT=$MASTER_COUNT"
 echo "[+] K3S_VERSION=$K3S_VERSION"
 
+# Private K3s API traffic must bypass any system HTTP(S) proxy.
+export NO_PROXY="${NO_PROXY:+$NO_PROXY,}${MASTER_IP},127.0.0.1,localhost"
+export no_proxy="$NO_PROXY"
+
 # ============================================================
 # FIRST MASTER
 # ============================================================
@@ -75,7 +79,7 @@ else
   for i in $(seq 1 "$MAX_RETRIES"); do
 
     if timeout 3 bash -c "</dev/tcp/${MASTER_IP}/6443" 2>/dev/null && \
-       curl -kfsS --connect-timeout 3 --max-time 8 \
+       curl --noproxy "*" -kfsS --connect-timeout 3 --max-time 8 \
        "https://${MASTER_IP}:6443/readyz" \
        >/dev/null 2>&1; then
 
@@ -87,7 +91,7 @@ else
     sleep "$DELAY"
   done
 
-  if ! curl -kfsS \
+  if ! curl --noproxy "*" -kfsS \
     "https://${MASTER_IP}:6443/readyz" \
     >/dev/null 2>&1; then
 
@@ -97,7 +101,7 @@ else
     echo "[-] TCP 6443 test:"
     timeout 5 bash -c "</dev/tcp/${MASTER_IP}/6443" 2>&1 || true
     echo "[-] HTTPS readiness test:"
-    curl -kS --connect-timeout 5 --max-time 10 "https://${MASTER_IP}:6443/readyz" 2>&1 || true
+    curl --noproxy "*" -kS --connect-timeout 5 --max-time 10 "https://${MASTER_IP}:6443/readyz" 2>&1 || true
     exit 1
   fi
 
