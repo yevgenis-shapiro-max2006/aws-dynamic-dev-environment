@@ -21,7 +21,7 @@ variable "master_count" {
 
 variable "worker_count" {
   type    = number
-  default = 2
+  default = 3
 }
 
 variable "root_volume_size" {
