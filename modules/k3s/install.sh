@@ -227,6 +227,7 @@ if [ "$NODE_INDEX" -eq 0 ]; then
   echo "[+] NGINX Ingress service:"
   kubectl get svc -n ingress-nginx
 
+  sleep 5
   echo "[+] Installing Argo Controller..."
   helm repo add argo https://argoproj.github.io/argo-helm
   helm repo update
