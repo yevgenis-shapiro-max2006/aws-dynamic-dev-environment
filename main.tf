@@ -225,20 +225,19 @@ resource "aws_key_pair" "generated_key" {
 }
 
 # ============================================================
-# K3s Masters
+# ============================================================
+# K3s Primary Master
 # ============================================================
 
-resource "aws_instance" "k3s_master" {
-  count = var.master_count
+resource "aws_instance" "k3s_master_primary" {
+  count = var.master_count > 0 ? 1 : 0
 
   ami           = var.ami_id
   instance_type = var.instance_type
 
   key_name = aws_key_pair.generated_key.key_name
 
-  subnet_id = aws_subnet.k3s[
-    count.index % 3
-  ].id
+  subnet_id = aws_subnet.k3s[0].id
 
   vpc_security_group_ids = [
     aws_security_group.k3s_sg.id
@@ -253,7 +252,7 @@ resource "aws_instance" "k3s_master" {
   }
 
   tags = {
-    Name = "k3s-master-${count.index}"
+    Name = "k3s-master-0"
     Role = "master"
   }
 
@@ -281,10 +280,101 @@ resource "aws_instance" "k3s_master" {
       "chown ubuntu:ubuntu /home/ubuntu/.ssh/id_rsa",
       "chmod +x /tmp/install.sh",
 
-      "echo '[+] Starting K3s master bootstrap...'",
-      "bash /tmp/install.sh ${count.index} ${self.private_ip} ${var.master_count}"
+      "echo '[+] Starting K3s primary master bootstrap...'",
+      "bash /tmp/install.sh 0 ${self.private_ip} ${var.master_count}"
     ]
   }
+}
+
+# ============================================================
+# K3s Additional Masters
+# ============================================================
+
+resource "aws_instance" "k3s_master_additional" {
+  count = var.master_count > 1 ? var.master_count - 1 : 0
+
+  ami           = var.ami_id
+  instance_type = var.instance_type
+
+  key_name = aws_key_pair.generated_key.key_name
+
+  subnet_id = aws_subnet.k3s[
+    (count.index + 1) % 3
+  ].id
+
+  vpc_security_group_ids = [
+    aws_security_group.k3s_sg.id
+  ]
+
+  associate_public_ip_address = true
+
+  root_block_device {
+    volume_size           = var.root_volume_size
+    volume_type           = var.root_volume_type
+    delete_on_termination = true
+  }
+
+  tags = {
+    Name = "k3s-master-${count.index + 1}"
+    Role = "master"
+  }
+
+  connection {
+    type        = "ssh"
+    user        = "ubuntu"
+    private_key = file(var.ssh_private_key_path)
+    host        = self.public_ip
+    timeout     = "5m"
+  }
+
+  provisioner "file" {
+    source      = var.ssh_private_key_path
+    destination = "/home/ubuntu/.ssh/id_rsa"
+  }
+
+  provisioner "file" {
+    source      = "./modules/k3s/install.sh"
+    destination = "/tmp/install.sh"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "chmod 600 /home/ubuntu/.ssh/id_rsa",
+      "chown ubuntu:ubuntu /home/ubuntu/.ssh/id_rsa",
+      "chmod +x /tmp/install.sh",
+
+      "echo '[+] Waiting for primary K3s API on ${aws_instance.k3s_master_primary[0].private_ip}:6443...'",
+      "for i in $(seq 1 60); do timeout 2 bash -c '</dev/tcp/${aws_instance.k3s_master_primary[0].private_ip}/6443' 2>/dev/null && break; echo '[+] Waiting for K3s API...'; sleep 5; done",
+      "timeout 2 bash -c '</dev/tcp/${aws_instance.k3s_master_primary[0].private_ip}/6443' 2>/dev/null || { echo '[-] K3s API did not become reachable'; exit 1; }",
+      "echo '[+] Starting K3s additional master bootstrap...'",
+      "bash /tmp/install.sh ${count.index + 1} ${aws_instance.k3s_master_primary[0].private_ip} ${var.master_count}"
+    ]
+  }
+
+  # The primary master must complete its Terraform provisioners before
+  # additional masters are created and bootstrapped.
+  depends_on = [
+    aws_instance.k3s_master_primary
+  ]
+}
+
+# ============================================================
+# Preserve existing master instances during resource split
+# ============================================================
+
+moved {
+  from = aws_instance.k3s_master[0]
+  to   = aws_instance.k3s_master_primary[0]
+}
+
+moved {
+  from = aws_instance.k3s_master[1]
+  to   = aws_instance.k3s_master_additional[0]
+}
+
+moved {
+  from = aws_instance.k3s_master[2]
+  to   = aws_instance.k3s_master_additional[1]
 }
 
 # ============================================================
@@ -344,17 +434,12 @@ resource "aws_instance" "k3s_worker" {
     "chown ubuntu:ubuntu /home/ubuntu/.ssh/id_rsa",
     "chmod +x /tmp/install.sh",
 
-    "echo '[+] Waiting for primary K3s API on ${aws_instance.k3s_master[0].private_ip}:6443...'",
-    "for i in $(seq 1 60); do timeout 2 bash -c '</dev/tcp/${aws_instance.k3s_master[0].private_ip}/6443' 2>/dev/null && break; echo '[+] Waiting for K3s API...'; sleep 5; done",
-    "timeout 2 bash -c '</dev/tcp/${aws_instance.k3s_master[0].private_ip}/6443' 2>/dev/null || { echo '[-] K3s API did not become reachable'; exit 1; }",
+    "echo '[+] Waiting for primary K3s API on ${aws_instance.k3s_master_primary[0].private_ip}:6443...'",
+    "for i in $(seq 1 60); do timeout 2 bash -c '</dev/tcp/${aws_instance.k3s_master_primary[0].private_ip}/6443' 2>/dev/null && break; echo '[+] Waiting for K3s API...'; sleep 5; done",
+    "timeout 2 bash -c '</dev/tcp/${aws_instance.k3s_master_primary[0].private_ip}/6443' 2>/dev/null || { echo '[-] K3s API did not become reachable'; exit 1; }",
     "echo '[+] Starting K3s worker bootstrap...'",
-    "bash /tmp/install.sh ${var.master_count + count.index} ${aws_instance.k3s_master[0].private_ip} ${var.master_count}"
+    "bash /tmp/install.sh ${var.master_count + count.index} ${aws_instance.k3s_master_primary[0].private_ip} ${var.master_count}"
   ]
 }
 
-  # Workers start only after the master has completed
-  # its Terraform provisioners.
-  depends_on = [
-    aws_instance.k3s_master
-  ]
 }
