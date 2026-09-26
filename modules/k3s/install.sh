@@ -243,7 +243,13 @@ if [ "$NODE_INDEX" -eq 0 ]; then
     --set server.ingress.annotations."nginx\.ingress\.kubernetes\.io/backend-protocol"=HTTP \
     --wait \
     --timeout 5m
-    
+
+  sleep 5
+  kubectl patch deployment argocd-server -n argocd \
+  --type='json' \
+  -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--insecure"}]'
+  kubectl rollout status deployment/argocd-server -n argocd
+  
   echo ""
   echo "[+] K3s bootstrap completed successfully"
 
