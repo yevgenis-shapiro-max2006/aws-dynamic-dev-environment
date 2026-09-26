@@ -61,6 +61,7 @@ variable "ssh_public_key_path" {
   default = "/home/ubuntu/.ssh/id_rsa.pub"
 }
 
+
 variable "ssh_private_key_path" {
   type    = string
   default = "/home/ubuntu/.ssh/id_rsa"
