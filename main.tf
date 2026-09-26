@@ -282,7 +282,6 @@ resource "aws_instance" "k3s_master" {
       "chmod +x /tmp/install.sh",
 
       "echo '[+] Starting K3s master bootstrap...'",
-
       "bash /tmp/install.sh ${count.index} ${self.private_ip} ${var.master_count}"
     ]
   }
