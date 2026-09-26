@@ -32,6 +32,7 @@ if [ "$NODE_INDEX" -eq 0 ]; then
     INSTALL_K3S_EXEC="server \
       --cluster-init \
       --write-kubeconfig-mode 644 \
+      --tls-san "$MASTER_IP" \
       --disable local-storage \
       --disable traefik" \
     sh -
@@ -68,14 +69,15 @@ else
 
   echo "[+] Waiting for master API..."
 
-  MAX_RETRIES=60
+  MAX_RETRIES=120
   DELAY=5
 
   for i in $(seq 1 "$MAX_RETRIES"); do
 
-    if curl -kfsS \
-      "https://${MASTER_IP}:6443/readyz" \
-      >/dev/null 2>&1; then
+    if timeout 3 bash -c "</dev/tcp/${MASTER_IP}/6443" 2>/dev/null && \
+       curl -kfsS --connect-timeout 3 --max-time 8 \
+       "https://${MASTER_IP}:6443/readyz" \
+       >/dev/null 2>&1; then
 
       echo "[+] Master API is ready"
       break
@@ -90,6 +92,12 @@ else
     >/dev/null 2>&1; then
 
     echo "[-] Master API did not become ready"
+    echo "[-] Route to master:"
+    ip route get "$MASTER_IP" || true
+    echo "[-] TCP 6443 test:"
+    timeout 5 bash -c "</dev/tcp/${MASTER_IP}/6443" 2>&1 || true
+    echo "[-] HTTPS readiness test:"
+    curl -kS --connect-timeout 5 --max-time 10 "https://${MASTER_IP}:6443/readyz" 2>&1 || true
     exit 1
   fi
 
