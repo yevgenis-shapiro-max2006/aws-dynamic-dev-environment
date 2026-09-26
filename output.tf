@@ -2,7 +2,7 @@
 
 output "k3s_master_ips" {
   description = "Public IPs of all master nodes"
-  value       = aws_instance.k3s_master[*].public_ip
+  value       = concat(aws_instance.k3s_master_primary[*].public_ip, aws_instance.k3s_master_additional[*].public_ip)
 }
 
 
@@ -14,7 +14,7 @@ output "k3s_worker_ips" {
 
 output "k3s_master_private_ips" {
   description = "Private IPs of all master nodes"
-  value       = aws_instance.k3s_master[*].private_ip
+  value       = concat(aws_instance.k3s_master_primary[*].private_ip, aws_instance.k3s_master_additional[*].private_ip)
 }
 
 
@@ -54,12 +54,12 @@ output "k3s_security_group_id" {
 
 output "k3s_api_private_endpoint" {
   description = "Private K3s API endpoint"
-  value       = "https://${aws_instance.k3s_master[0].private_ip}:6443"
+  value       = "https://${aws_instance.k3s_master_primary[0].private_ip}:6443"
 }
 
 
 output "k3s_master_ssh_command" {
   description = "SSH command for the first K3s master"
-  value       = "ssh -i ${var.ssh_private_key_path} ubuntu@${aws_instance.k3s_master[0].public_ip}"
+  value       = "ssh -i ${var.ssh_private_key_path} ubuntu@${aws_instance.k3s_master_primary[0].public_ip}"
 }
 
