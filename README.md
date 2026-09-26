@@ -8,10 +8,13 @@ K3s as a lightweight and certified Kubernetes distribution developed by Rancher 
 
 🎯  Installation and Integration
 ```
-✅ Launch EC2 Instances
-✅ Install K3S Binary ( Kubernetes )
-✅ Prepare Cluster Configuration
-✅ Deploy ApplicationSet via Terraform Provider
+✅ GitLab — source code, Terraform, Kubernetes manifests
+✅ Terraform + reusable Terraform Modules
+✅ AWS infrastructure / VM / networking / load balancers
+✅ K3s / Kubernetes
+✅ Velero + Velero UI — backup and restore
+✅ Argo Events / Event-driven GitOps
+✅ Kubernetes workloads and resources
 ```
 
 🚀 
